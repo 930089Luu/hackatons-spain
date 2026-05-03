@@ -1,2 +1,2 @@
-duckduckgo-search
+ddgs
 supabase
