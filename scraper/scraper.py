@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from supabase import create_client
 
 # Credenciales desde variables de entorno
