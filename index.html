@@ -173,7 +173,8 @@
   .cdbadge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;border:2px solid var(--navy);background:rgba(255,255,255,.88);color:var(--navy);backdrop-filter:blur(4px)}
   .cdbadge.soon {background:#FEF9C3;color:#713F12;border-color:#CA8A04}
   .cdbadge.today{background:#D1FAE5;color:#065F46;border-color:#059669}
-  .cdbadge.past {background:rgba(241,245,249,.9);color:var(--g400);border-color:var(--g200)}
+  .cdbadge.past  {background:rgba(241,245,249,.9);color:var(--g400);border-color:var(--g200)}
+.cdbadge.nodate{background:rgba(241,245,249,.7);color:var(--g400);border-color:var(--g200);font-style:italic}
 
   .card-body{padding:14px 14px 16px;flex:1;display:flex;flex-direction:column}
   .card-title{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -345,10 +346,11 @@ function cityClass(c){
   return m[(c||'').toLowerCase()]||'c-default';
 }
 function cdInfo(f){
-  if(!f)return{text:'Sin fecha',cls:''};
+  if(!f)return{text:'Sin fecha',cls:'nodate'};
   const d=new Date(f),diff=Math.ceil((d-today)/86400000);
   if(diff<0) return{text:'Finalizado',cls:'past'};
   if(diff===0)return{text:'¡Hoy!',cls:'today'};
+  if(diff<=7) return{text:`En ${diff}d`,cls:'soon'};
   if(diff<=30)return{text:`En ${diff}d`,cls:'soon'};
   return{text:`En ${diff}d`,cls:''};
 }
@@ -358,7 +360,11 @@ function fmtDate(s,e){
   const ds=new Date(s).toLocaleDateString('es-ES',o);
   return e&&e!==s?`${ds} – ${new Date(e).toLocaleDateString('es-ES',o)}`:ds;
 }
-function future(ev){return!ev.fecha_inicio||new Date(ev.fecha_inicio)>=today}
+// null=sin fecha, true=futuro, false=pasado
+function estado(ev){
+  if(!ev.fecha_inicio) return null;
+  return new Date(ev.fecha_inicio)>=today;
+}
 
 function buildCard(ev){
   const cc=cityClass(ev.ciudad);
@@ -385,19 +391,28 @@ function observe(){
 function render(){
   const q=document.getElementById('qi').value.toLowerCase().trim();
   let list=all.filter(ev=>{
-    if(statF==='proximos'   &&!future(ev))return false;
-    if(statF==='finalizados'&& future(ev))return false;
+    const est=estado(ev); // null=sin fecha, true=futuro, false=pasado
+    // Próximos: solo eventos con fecha futura (sin fecha NO aparece aquí)
+    if(statF==='proximos'    && est!==true)  return false;
+    // Finalizados: solo eventos con fecha pasada (sin fecha NO aparece aquí)
+    if(statF==='finalizados' && est!==false) return false;
     if(cityF!=='todos'&&(ev.ciudad||'').toLowerCase()!==cityF.toLowerCase())return false;
     if(q&&!`${ev.nombre} ${ev.ciudad} ${ev.descripcion||''}`.toLowerCase().includes(q))return false;
     return true;
   });
   list.sort((a,b)=>{
-    const af=future(a),bf=future(b);
-    if(af&&!bf)return-1;if(!af&&bf)return 1;
+    const ea=estado(a),eb=estado(b);
+    // Orden: próximos (fecha asc) → sin fecha → finalizados (fecha desc)
+    if(ea===true  && eb!==true)  return -1;
+    if(ea!==true  && eb===true)  return  1;
+    if(ea===null  && eb!==null)  return -1;
+    if(ea!==null  && eb===null)  return  1;
     const da=a.fecha_inicio?new Date(a.fecha_inicio):null;
     const db=b.fecha_inicio?new Date(b.fecha_inicio):null;
-    if(!da&&!db)return 0;if(!da)return af?-1:1;if(!db)return bf?1:-1;
-    return af?da-db:db-da;
+    if(!da&&!db)return 0;
+    if(ea===true)  return da-db;   // próximos: más cercano primero
+    if(ea===false) return db-da;   // finalizados: más reciente primero
+    return 0;
   });
   const grid=document.getElementById('gridEl');
   document.getElementById('rcountEl').textContent=`${list.length} evento${list.length!==1?'s':''} encontrado${list.length!==1?'s':''}`;
@@ -427,10 +442,12 @@ function countUp(id,target,suf=''){
 async function init(){
   try{
     const res=await fetch(`${URL_SB}/rest/v1/hackathons?select=id,nombre,descripcion,fecha_inicio,fecha_fin,ciudad,url,fecha_scraping&order=fecha_scraping.desc&limit=500`,
-      {headers:{'apikey':KEY_SB,'Authorization':`Bearer ${KEY_SB}`}});
-    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+      {headers:{'apikey':KEY_SB,'Authorization':`Bearer ${KEY_SB}`,'Cache-Control':'no-cache'}});
+    if(!res.ok)throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     all=await res.json();
-    const up=all.filter(future).length;
+    const conFecha=all.filter(e=>e.fecha_inicio).length;
+    console.log(`✅ hackathons.es v8 | ${all.length} eventos cargados | ${conFecha} con fecha`);
+    const up=all.filter(ev=>estado(ev)===true).length;
     const cities=[...new Set(all.map(e=>e.ciudad).filter(Boolean))].sort();
     countUp('stTotal',all.length,'+');
     countUp('stCities',cities.length);
