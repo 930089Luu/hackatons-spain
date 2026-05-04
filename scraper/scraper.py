@@ -39,11 +39,22 @@ MESES = {
 }
 
 BASURA = [
+    # Redes sociales y vídeos
+    "youtube.com","youtu.be","instagram.com","tiktok.com","twitter.com",
+    "x.com","facebook.com","vk.com","rutube.ru","linkedin.com","reddit.com",
+    # Contenido no español o irrelevante
     "смотреть","сериал","серия","фильм","онлайн","viral","terbaru",
-    "football","mackolik","takım","youtube.com","instagram.com","tiktok.com",
-    "vk.com","rutube.ru","kinogo","rosserialls","pinkviral","kaz-media",
-    "linkedin.com","facebook.com","twitter.com","x.com","wikipedia.org",
-    "reddit.com","scrum","futbol","fútbol","ecuador","colombia",
+    "mackolik","takım","kinogo","rosserialls","pinkviral","kaz-media",
+    "futbol","fútbol","football","ecuador","colombia","scrum",
+    # Páginas de listado / CMS (no son eventos reales)
+    "upcoming hackathons in","find hackathon","find & organize",
+    "publica tu hackathon","quieres organizar","guía completa",
+    "list of hackathons","hackathons events","hackathon events",
+    "things to do","discover hackathon","search hackathon",
+    "wikipedia.org","medium.com","/tag/","#hackathon",
+    # Noticias antiguas / recaps
+    "recap:","ganadores del","los ganadores","celebrouse","celebrado en",
+    "celebramos","celebrado el","ya hemos","así fue",
 ]
 
 PAISES_EXCLUIDOS = [
@@ -279,6 +290,14 @@ def scrape_ddg():
                     if any(d in url.lower() for d in DOMINIOS_BLOQUEADOS): continue
                     if not es_hackathon(titulo): continue
                     if not es_de_espana(texto): continue
+                    # Filtrar páginas de listado / no-eventos
+                    titulo_lower = titulo.lower()
+                    if any(b in titulo_lower for b in [
+                        "upcoming hackathons in","find hackathons","find & organize",
+                        "list of hackathons","discover hackathon","hackathon events in",
+                        "things to do","publica tu","quieres organizar","guía completa",
+                        "recap:","ganadores","celebrouse","así fue el",
+                    ]): continue
                     vistos.add(url)
 
                     # Visitar la página para JSON-LD
